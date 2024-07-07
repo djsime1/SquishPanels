@@ -1,24 +1,17 @@
 ﻿using HarmonyLib;
-using NeosModLoader;
+using ResoniteModLoader;
 using FrooxEngine;
 using FrooxEngine.UIX;
-using FrooxEngine.LogiX;
-using FrooxEngine.LogiX.Color;
-using FrooxEngine.LogiX.Input;
-using BaseX;
-using CodeX;
-using System;
-using System.Reflection;
-using System.Collections.Generic;
+using Elements.Core;
 
 
 
 namespace SquishPanels;
-public class SquishPanels : NeosMod
+public class SquishPanels : ResoniteMod
 {
     public override string Author => "Cyro";
     public override string Name => "SquishPanels";
-    public override string Version => "2.0.4";
+    public override string Version => "3.0.0";
 
     public static float DopplerLevel = 0.0f;
     public static AudioDistanceSpace DistSpace = AudioDistanceSpace.Global;
@@ -32,10 +25,10 @@ public class SquishPanels : NeosMod
     private static ModConfigurationKey<bool> PlaySoundLocally = new ModConfigurationKey<bool>("PlaySoundLocally", "Makes the sound local for the mod user if true", () => false);
 
     [AutoRegisterConfigKey]
-    private static ModConfigurationKey<string> OpenSoundURL = new ModConfigurationKey<string>("OpenSoundURL", "The URL of the sound to play when the panel opens", () => "neosdb:///bbdf36b8f036a5c30f7019d68c1fbdd4032bb1d4c9403bcb926bb21cd0ca3c1a.wav");
+    private static ModConfigurationKey<string> OpenSoundURL = new ModConfigurationKey<string>("OpenSoundURL", "The URL of the sound to play when the panel opens", () => "resdb:///bbdf36b8f036a5c30f7019d68c1fbdd4032bb1d4c9403bcb926bb21cd0ca3c1a.wav");
 
     [AutoRegisterConfigKey]
-    private static ModConfigurationKey<string> CloseSoundURL = new ModConfigurationKey<string>("CloseSoundURL", "The URL of the sound to play when the panel closes", () => "neosdb:///e600ed8a6895325613b82a50fd2a8ea2ac64151adc5c48c913d33d584fdf75d5.wav");
+    private static ModConfigurationKey<string> CloseSoundURL = new ModConfigurationKey<string>("CloseSoundURL", "The URL of the sound to play when the panel closes", () => "resdb:///e600ed8a6895325613b82a50fd2a8ea2ac64151adc5c48c913d33d584fdf75d5.wav");
 
     [AutoRegisterConfigKey]
     private static ModConfigurationKey<float> PanelOpenSpeed = new ModConfigurationKey<float>("PanelOpenSpeed", "The speed (in seconds) at which the panel opens", () => 0.22f);
@@ -54,8 +47,8 @@ public class SquishPanels : NeosMod
         harmony.PatchAll();
     }
 
-    [HarmonyPatch(typeof(NeosPanel), "OnAttach")]
-    public static class NeosPanel_OnAttach_Patch
+    [HarmonyPatch(typeof(LegacyPanel), "OnAttach")]
+    public static class LegacyPanel_OnAttach_Patch
     {
 
         private static bool ShouldPlayLocally()
@@ -63,7 +56,7 @@ public class SquishPanels : NeosMod
             string? description = Engine.Current.WorldManager.FocusedWorld.Description;
             return description != null && description.Contains("##SquishPanels.ForceLocal##") || Config!.GetValue<bool>(PlaySoundLocally);
         }
-        public static void PlayOpenSound(NeosPanel __instance)
+        public static void PlayOpenSound(LegacyPanel __instance)
         {
             StaticAudioClip clip = __instance.World.GetSharedComponentOrCreate<StaticAudioClip>(Config!.GetValue<string>(OpenSoundURL), a => a.URL.Value = new Uri(Config!.GetValue<string>(OpenSoundURL)));
             AudioOutput audio = __instance.World.PlayOneShot(__instance.Slot.GlobalPosition, clip, 1f, true, 1f, __instance.Slot, AudioDistanceSpace.Local, ShouldPlayLocally());
@@ -72,7 +65,7 @@ public class SquishPanels : NeosMod
             audio.DistanceSpace.Value = DistSpace;
         }
 
-        public static void PlayCloseSound(NeosPanel __instance)
+        public static void PlayCloseSound(LegacyPanel __instance)
         {
             StaticAudioClip clip = __instance.World.GetSharedComponentOrCreate<StaticAudioClip>(Config!.GetValue<string>(CloseSoundURL), a => a.URL.Value = new Uri(Config!.GetValue<string>(CloseSoundURL)));
             AudioOutput audio = __instance.World.PlayOneShot(__instance.Slot.GlobalPosition, clip, 1f, true, 1f, __instance.Slot, AudioDistanceSpace.Local, ShouldPlayLocally());
@@ -81,7 +74,7 @@ public class SquishPanels : NeosMod
             audio.DistanceSpace.Value = DistSpace;
         }
 
-        public static void Postfix(NeosPanel __instance)
+        public static void Postfix(LegacyPanel __instance)
         {
             if (!Config!.GetValue<bool>(Enabled))
                 return;
@@ -123,20 +116,20 @@ public class SquishPanels : NeosMod
     }
 
     [HarmonyPatch]
-    public static class NeosPanel_OnClose_Snapshot
+    public static class LegacyPanel_OnClose_Snapshot
     {
         [HarmonyReversePatch]
-        [HarmonyPatch(typeof(NeosPanel), "OnClose")]
-        public static void OnClose(object instance, NeosPanel.TitleButton button)
+        [HarmonyPatch(typeof(LegacyPanel), "OnClose")]
+        public static void OnClose(object instance, LegacyPanel.TitleButton button)
         {
             throw new NotImplementedException();
         }
     }
 
-    [HarmonyPatch(typeof(NeosPanel), "OnClose")]
-    public static class NeosPanel_AddCloseButton_Patch
+    [HarmonyPatch(typeof(LegacyPanel), "OnClose")]
+    public static class LegacyPanel_AddCloseButton_Patch
     {
-        public static bool Prefix(NeosPanel __instance, NeosPanel.TitleButton button)
+        public static bool Prefix(LegacyPanel __instance, LegacyPanel.TitleButton button)
         {
             if(!Config!.GetValue<bool>(Enabled))
                 return true;
@@ -145,13 +138,13 @@ public class SquishPanels : NeosMod
                 if (__instance.World.IsUserspace())
                     __instance.Slot.Destroy();
                 else
-                    NeosPanel_OnClose_Snapshot.OnClose(__instance, button);
+                    LegacyPanel_OnClose_Snapshot.OnClose(__instance, button);
             };
 
             if (__instance.WhiteList.Count < 1)
             {
                 float3 OrigSize = __instance.Slot.LocalScale;
-                NeosPanel_OnAttach_Patch.PlayCloseSound(__instance);
+                LegacyPanel_OnAttach_Patch.PlayCloseSound(__instance);
                 __instance.Slot.Scale_Field.TweenTo(new float3(OrigSize.x, 0f, OrigSize.z), Config!.GetValue<float>(PanelCloseSpeed), default, null, OnTweenDoneAction);
                 return false;
             }
@@ -166,7 +159,7 @@ public class SquishPanels : NeosMod
                 if (c == null)
                     return true;
                 
-                NeosPanel_OnAttach_Patch.PlayCloseSound(__instance);
+                LegacyPanel_OnAttach_Patch.PlayCloseSound(__instance);
                 c.Size.TweenTo(new float2(c.Size.Value.x, 0f), Config!.GetValue<float>(PanelCloseSpeed), default, null, OnTweenDoneAction);
                 return false;
             }
